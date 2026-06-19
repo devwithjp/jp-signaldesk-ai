@@ -5,6 +5,7 @@ import type { Analysis, AskAnswer, Citation, Cluster, EmbeddedItem, PRD } from "
 import { buildRoadmap, buildExperiments } from "@/lib/derive";
 import { sampleCsv } from "@/lib/sample-data";
 import { track } from "@/lib/analytics";
+import { apiPath } from "@/lib/base";
 
 type Section = "themes" | "ask" | "prd" | "roadmap" | "metrics";
 
@@ -21,7 +22,7 @@ export function Workspace() {
     setError(null);
     track("demo_started", {});
     try {
-      const res = await fetch("/api/analyze", {
+      const res = await fetch(apiPath("/api/analyze"), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ raw: input, mode: "mock" }),
@@ -214,7 +215,7 @@ function Ask({ pool }: { pool: EmbeddedItem[] }) {
     if (!q.trim()) return;
     setLoading(true);
     setAns(null);
-    const res = await fetch("/api/ask", {
+    const res = await fetch(apiPath("/api/ask"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ question: q, pool, mode: "mock" }),
@@ -278,7 +279,7 @@ function PRDPanel({ clusters, pool }: { clusters: Cluster[]; pool: EmbeddedItem[
     setLoading(true);
     setPrd(null);
     setRated(false);
-    const res = await fetch("/api/prd", {
+    const res = await fetch(apiPath("/api/prd"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ cluster, pool, mode: "mock" }),
@@ -290,7 +291,7 @@ function PRDPanel({ clusters, pool }: { clusters: Cluster[]; pool: EmbeddedItem[
   }
 
   async function rate(n: number) {
-    await fetch("/api/feedback", {
+    await fetch(apiPath("/api/feedback"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ rating: n, on: "prd" }),
