@@ -19,6 +19,7 @@ export type Cluster = {
   itemIds: string[];
   size: number;
   avgSentiment: number;
+  sentimentLabel: string; // honest display form: "-0.47", "+0.44", "mixed", "neutral"
   opportunityScore: number; // 0–100
 };
 

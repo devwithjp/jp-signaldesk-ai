@@ -168,7 +168,7 @@ function Themes({ analysis, idToText }: { analysis: Analysis; idToText: Map<stri
             <div className="mt-2 flex flex-wrap gap-1.5 font-mono text-[11px] text-muted">
               <span className="rounded-full border border-line px-2 py-0.5">{c.size} items</span>
               <span className={`rounded-full border border-line px-2 py-0.5 ${sentimentColor(c.avgSentiment)}`}>
-                sentiment {c.avgSentiment.toFixed(2)}
+                sentiment {c.sentimentLabel}
               </span>
               {c.keywords.map((k) => (
                 <span key={k} className="rounded-full border border-line px-2 py-0.5">

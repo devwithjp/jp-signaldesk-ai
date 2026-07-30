@@ -31,9 +31,25 @@ export async function generatePRD(
     return livePRD(cluster, evidence);
   }
 
+  // Praise themes get a "protect the strength" PRD instead of a fix-it PRD.
+  const positive = cluster.avgSentiment > 0.15;
+  if (positive) {
+    return {
+      title: `Double down: ${cluster.label}`,
+      problem: `Users consistently praise this area ("${cluster.label}", ${cluster.size} mentions, sentiment ${cluster.sentimentLabel}). The risk is regression: losing a strength users already rely on.`,
+      evidence,
+      proposal: `Identify what drives the praise in the evidence, add regression guardrails around it, and amplify it in onboarding and marketing copy.`,
+      successMetric: `Positive-mention share for "${cluster.label}" holds or grows over the next release.`,
+      risks: [
+        "Praise may concentrate in a vocal segment — verify across user cohorts.",
+        "Over-indexing on strengths can starve pain-point fixes; timebox the investment.",
+      ],
+    };
+  }
+
   return {
     title: `Improve ${cluster.label}`,
-    problem: `Users repeatedly raise issues around "${cluster.label}" (${cluster.size} mentions, avg sentiment ${cluster.avgSentiment.toFixed(2)}). This theme scores ${cluster.opportunityScore}/100 on opportunity.`,
+    problem: `Users repeatedly raise issues around "${cluster.label}" (${cluster.size} mentions, sentiment ${cluster.sentimentLabel}). This theme scores ${cluster.opportunityScore}/100 on opportunity.`,
     evidence,
     proposal: `Scope a focused improvement to the "${cluster.label}" experience. Start with the highest-frequency pain points in the evidence, ship behind a flag, and measure against the success metric below.`,
     successMetric: `Reduce negative "${cluster.label}" feedback by ≥20% and improve theme sentiment within one release.`,
@@ -71,12 +87,18 @@ async function livePRD(cluster: Cluster, evidence: Citation[]): Promise<PRD> {
 
 // ---- Ask over feedback (RAG Q&A) ----
 
+const NEG_INTENT = /complain|complaint|problem|issue|pain|hate|frustrat|annoy|wrong|dislike|worst|broken/i;
+const POS_INTENT = /love|like|enjoy|praise|positive|favou?rite|best|working well|happy/i;
+
 export async function ask(
   question: string,
   pool: EmbeddedItem[],
   mode: "mock" | "live"
 ): Promise<AskAnswer> {
-  const citations = retrieve(mockEmbed(question), pool, 4);
+  // Opinion questions rarely share vocabulary with raw feedback; bias retrieval toward
+  // the matching sentiment so "what do users complain about?" surfaces pain, not noise.
+  const bias = NEG_INTENT.test(question) ? -0.35 : POS_INTENT.test(question) ? 0.35 : 0;
+  const citations = retrieve(mockEmbed(question), pool, 4, bias);
   if (mode === "live" && liveGenerationAvailable()) {
     const prompt = `Answer the question using ONLY the cited user feedback. If the feedback doesn't cover it, say so.\n\nQUESTION: ${question}\n\nFEEDBACK:\n${citations.map((c, i) => `[${i + 1}] ${c.text}`).join("\n")}`;
     const res = await getClient().messages.create({

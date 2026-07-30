@@ -2,13 +2,15 @@ import type { Citation, EmbeddedItem } from "./types";
 import { cosine } from "./embeddings";
 
 // Retrieve the top-k most similar feedback items to a query vector — the retrieval half
-// of RAG. Returns citations (source-grounded snippets).
-export function retrieve(queryVec: number[], pool: EmbeddedItem[], k = 4): Citation[] {
+// of RAG. Returns citations (source-grounded snippets). `sentimentBias` lets opinion
+// questions ("what do users complain about / like?") favor negative or positive items
+// even when the question shares no vocabulary with the feedback.
+export function retrieve(queryVec: number[], pool: EmbeddedItem[], k = 4, sentimentBias = 0): Citation[] {
   return [...pool]
-    .map((it) => ({ it, score: cosine(queryVec, it.vector) }))
+    .map((it) => ({ it, score: cosine(queryVec, it.vector) + sentimentBias * it.sentiment }))
     .sort((a, b) => b.score - a.score)
     .slice(0, k)
-    .filter((x) => x.score > 0)
+    .filter((x) => x.score > 0.05)
     .map((x) => ({ itemId: x.it.id, text: x.it.text, source: x.it.source }));
 }
 

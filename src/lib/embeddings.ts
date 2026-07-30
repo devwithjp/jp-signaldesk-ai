@@ -2,18 +2,37 @@
 // with zero keys, plus a real OpenAI adapter (text-embedding-3-small) for live mode.
 // Anthropic has no first-party embeddings API, so RAG uses OpenAI for vectors only.
 
-const DIM = 96;
+const DIM = 512; // large enough that hash collisions rarely fake similarity
 
 const STOP = new Set(
-  "the a an and or but to of in on for with is are was it this that i we you they my our your their not no so very just really".split(" ")
+  "the a an and or but to of in on for with is are was it this that i we you they my our your their not no so very just really too get got use what when whenever how why way out make makes take takes keep keeps still don dont doesn didn couldn cant wont its like every".split(
+    " "
+  )
 );
 
-export function tokenize(text: string): string[] {
+// Light suffix stemming so surface variants (crash / crashes / crashing) land on the
+// same vector dimension — without it, short feedback lines about the same problem
+// share almost no exact tokens and never cluster.
+export function stem(w: string): string {
+  if (w.length > 5 && w.endsWith("ing")) w = w.slice(0, -3);
+  else if (w.length > 4 && w.endsWith("ed")) w = w.slice(0, -2);
+  else if (w.length > 4 && w.endsWith("ly")) w = w.slice(0, -2);
+  if (w.length > 3 && w.endsWith("es")) w = w.slice(0, -2);
+  else if (w.length > 3 && !w.endsWith("ss") && w.endsWith("s")) w = w.slice(0, -1);
+  return w;
+}
+
+// Unstemmed tokens — used where the original surface form matters (keyword chips).
+export function rawTokenize(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
     .filter((w) => w.length > 2 && !STOP.has(w));
+}
+
+export function tokenize(text: string): string[] {
+  return rawTokenize(text).map(stem);
 }
 
 function hashStr(s: string): number {
@@ -25,7 +44,7 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
-// Deterministic TF-hashing embedding: meaningful cosine similarity (shared words →
+// Deterministic TF-hashing embedding: meaningful cosine similarity (shared stems →
 // closer vectors) without any model call.
 export function mockEmbed(text: string): number[] {
   const v = new Array(DIM).fill(0);
@@ -47,8 +66,13 @@ export function cosine(a: number[], b: number[]): number {
   return dot; // inputs are normalized
 }
 
-const POS = new Set("love great good excellent amazing easy fast helpful nice perfect smooth happy".split(" "));
-const NEG = new Set("hate bad terrible awful slow broken confusing crash bug error fail expensive frustrating annoying difficult hard wrong missing".split(" "));
+// Lexicons are stemmed so they match stemmed tokens (confusing → confus, etc.).
+const POS = new Set(
+  "love great good excellent amazing easy fast helpful nice perfect smooth happy best responsive intuitive reliable".split(" ").map(stem)
+);
+const NEG = new Set(
+  "hate bad terrible awful slow broken confusing crash bug error errors fail fails expensive frustrating annoying difficult hard wrong missing lag laggy unreliable irrelevant incomplete clunky steep cancel lost".split(" ").map(stem)
+);
 
 export function sentiment(text: string): number {
   let s = 0;
